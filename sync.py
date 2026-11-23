@@ -14,10 +14,8 @@ GISTS = [
 ]
 OWNER = "Darlene-Alderson-FSOCIETY"
 OUT = "sub"
-UA = {"User-Agent": "node-pool-sync/1.0", "Accept": "application/vnd.github+json"}
+UA = {"User-Agent": "Mozilla/5.0 (compatible; node-pool-sync/1.0)", "Accept": "application/vnd.github+json"}
 TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-if TOKEN:
-    UA["Authorization"] = "Bearer " + TOKEN
 
 FLAG_CC = {
     "ZW": "🇿🇼", "NL": "🇳🇱", "DE": "🇩🇪", "RU": "🇷🇺", "US": "🇺🇸", "SG": "🇸🇬", "JP": "🇯🇵",
@@ -42,14 +40,35 @@ CITY_WORDS = {
 }
 
 # ---------- fetch ----------
-def http(url, timeout=40):
-    req = urllib.request.Request(url, headers=UA)
+def http(url, timeout=40, auth=False):
+    hdr = dict(UA)
+    if "api.github.com" not in url:
+        # 网页端点必须用浏览器的 Accept，发 application/vnd.github+json 会被回 404
+        hdr["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    req = urllib.request.Request(url, headers=hdr)
+    # 只对 api.github.com 带 token；网页端点带 Bearer 会被 GitHub 回 404
+    if auth and TOKEN:
+        req.add_header("Authorization", "Bearer " + TOKEN)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "ignore")
 
 def gist_files(gid):
-    meta = json.loads(http(f"https://api.github.com/gists/{gid}"))
-    return [(n, f["raw_url"], f.get("size", 0)) for n, f in meta["files"].items()]
+    """文件列表走网页解析，raw 走 gist.githubusercontent —— 全程不需要 API，避开限流/权限。"""
+    out, seen = [], set()
+    try:
+        html = http(f"https://gist.github.com/{OWNER}/{gid}", timeout=40)
+        for rev, fn in re.findall(r"raw/([0-9a-f]{40})/([A-Za-z0-9._%\-]+)", html):
+            name = up.unquote(up.unquote(fn))
+            if name in seen:
+                continue
+            seen.add(name)
+            out.append((name, f"https://gist.githubusercontent.com/{OWNER}/{gid}/raw/{name}", None))
+    except Exception as e:
+        print("html scrape failed:", e)
+    if not out:
+        meta = json.loads(http(f"https://api.github.com/gists/{gid}", auth=True))
+        out = [(n, f["raw_url"], f.get("size", 0)) for n, f in meta["files"].items()]
+    return out
 
 # ---------- helpers ----------
 def b64d(s):
@@ -365,10 +384,12 @@ def main():
     raw, src_stat = [], {}
     for gid in GISTS:
         for fname, url, size in gist_files(gid):
-            if size < 200 or not fname.endswith(".txt"):
+            if not fname.endswith(".txt"):
                 continue
             provider = re.sub(r"_Telegram_RE_s_B\.txt$|\.txt$", "", fname).strip()
             txt = http(url)
+            if len(txt) < 200:
+                continue
             n_before = len(raw)
             for m in re.finditer(r"([a-zA-Z0-9]+)://([^\s<>\"']+)", txt):
                 sch = m.group(1).lower()
@@ -431,7 +452,7 @@ def main():
                                  "url": "http://www.gstatic.com/generate_204", "interval": "5m"}]}
     json.dump(cfg, open(f"{OUT}/singbox.json", "w"), ensure_ascii=False, indent=1)
     # surge
-    sg = ["# Darlene gist pool — Surge 6 (VLESS/REALITY 需 iOS 6.0+)", "# " + datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"), "", "[Proxy]"]
+    sg = ["# Darlene gist pool — Surge 6 (VLESS/REALITY 需 iOS 6.0+)", "# " + datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "", "[Proxy]"]
     sg += [surge_line(n, n["name"]) for n in nodes]
     sg += ["", "[Proxy Group]", "手动选择 = select, " + ", ".join(n["name"] for n in nodes),
            "自动测速 = url-test, " + ", ".join(n["name"] for n in nodes) + ", url=http://www.gstatic.com/generate_204, interval=300",
@@ -447,7 +468,7 @@ def main():
 从 [@Darlene-Alderson-FSOCIETY](https://gist.github.com/{OWNER}) 的三个 gist 自动汇总，统一改写成标准分享链接，并生成 Clash / sing-box / Surge 配置。
 由 GitHub Actions 每 6 小时同步一次。
 
-- 更新时间：{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
+- 更新时间：{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
 - 节点总数：**{len(nodes)}**（去重后，单源 {len(raw)} 条）
 - 协议：{', '.join(f'{k} {v}' for k, v in pc.most_common())}
 - 安全层：{', '.join(f'{k} {v}' for k, v in sec.most_common())}
