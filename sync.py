@@ -5,7 +5,7 @@ sync.py — 汇总 Darlene-Alderson-FSOCIETY 三个 gist 的节点，
 
 无第三方依赖，Python 3.9+。本地: python3 sync.py    CI: 由 workflow 调用。
 """
-import os, re, json, base64, datetime, urllib.request, urllib.parse as up
+import os, re, json, base64, time, socket, datetime, urllib.request, urllib.parse as up
 
 GISTS = [
     "86fa5f2ad8ff17c182f4009c87c0911b",
@@ -70,6 +70,51 @@ def gist_files(gid):
         out = [(n, f["raw_url"], f.get("size", 0)) for n, f in meta["files"].items()]
     return out
 
+# ---------- geo (IP -> country) ----------
+GEO_CACHE_FILE = ".geo-cache.json"
+GEO_API = "http://ip-api.com/batch?fields=status,countryCode,query"
+IS_IP = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
+
+def load_geo_cache():
+    try:
+        return json.load(open(GEO_CACHE_FILE, encoding="utf-8"))
+    except Exception:
+        return {}
+
+def resolve_host(host):
+    try:
+        return socket.gethostbyname(host)
+    except Exception:
+        return ""
+
+def geo_lookup(ips):
+    """批量查 IP 归属国，结果落到 .geo-cache.json，避免每次全量重查。"""
+    cache = load_geo_cache()
+    todo = [ip for ip in ips if ip not in cache]
+    for i in range(0, len(todo), 50):
+        chunk = todo[i:i + 50]
+        body = json.dumps([{"query": ip} for ip in chunk]).encode()
+        rows = None
+        for attempt in range(3):
+            req = urllib.request.Request(GEO_API, data=body,
+                                         headers={"Content-Type": "application/json", **UA})
+            try:
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    rows = json.loads(r.read().decode())
+                break
+            except Exception as e:
+                print("geo lookup retry", attempt + 1, ":", e)
+                time.sleep(8)
+        if rows:
+            for row in rows:
+                q = row.get("query", "")
+                if not q:
+                    continue
+                cache[q] = (row.get("countryCode") or "") if row.get("status") == "success" else ""
+        time.sleep(4.5)  # 免费额度 15 次/分钟
+    json.dump(cache, open(GEO_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False, sort_keys=True)
+    return cache
+
 # ---------- helpers ----------
 def b64d(s):
     s = re.sub(r"\s+", "", s)
@@ -93,6 +138,11 @@ def flag_cc(text):
     if m and m.group(1) in FLAG_CC:
         return m.group(1)
     return "XX"
+
+def flag_of(cc):
+    if not cc or cc == "XX" or len(cc) != 2:
+        return "🏴"
+    return "".join(chr(0x1F1E6 + ord(c) - 65) for c in cc.upper())
 
 def clean(s):
     s = re.sub(r"[,\r\n\t]+", " ", s or "")
@@ -413,19 +463,35 @@ def main():
         if key in seen: continue
         seen.add(key)
         nodes.append(n)
-    # naming
-    counter = {}
+    # 地区：先按节点名推断，名字里没有、server 又是纯 IP 的按 IP 归属地补
     for n in nodes:
-        cc = flag_cc(n.get("name_raw", ""))
-        counter[cc] = counter.get(cc, 0) + 1
-        n["cc"] = cc
-        n["name"] = clean(f"{FLAG_CC.get(cc,'🏴')} {cc}-{counter[cc]:02d} {n['provider']}")
-    nodes.sort(key=lambda n: (n["cc"], n["proto"], n["name"]))
-    # reassign stable numbering after sort
+        n["cc"] = flag_cc(n.get("name_raw", ""))
+
+    ip_hosts = sorted({n["host"] for n in nodes if n["cc"] == "XX" and IS_IP.match(n["host"])})
+    if ip_hosts:
+        geo = geo_lookup(ip_hosts)
+        for n in nodes:
+            if n["cc"] == "XX" and geo.get(n["host"]):
+                n["cc"] = geo[n["host"]]
+
+    # 域名兜底：解析 A 记录后再查归属地
+    domain_hosts = sorted({n["host"] for n in nodes if n["cc"] == "XX" and not IS_IP.match(n["host"])})
+    if domain_hosts:
+        host_ip = {h: resolve_host(h) for h in domain_hosts}
+        ips2 = sorted({ip for ip in host_ip.values() if ip})
+        geo2 = geo_lookup(ips2) if ips2 else {}
+        for n in nodes:
+            if n["cc"] == "XX":
+                cc = geo2.get(host_ip.get(n["host"], ""), "")
+                if cc:
+                    n["cc"] = cc
+
+    # 排序后按地区重新连续编号
+    nodes.sort(key=lambda n: (n["cc"], n["proto"], n["host"], n["port"]))
     counter = {}
     for n in nodes:
         counter[n["cc"]] = counter.get(n["cc"], 0) + 1
-        n["name"] = clean(f"{FLAG_CC.get(n['cc'],'🏴')} {n['cc']}-{counter[n['cc']]:03d}")
+        n["name"] = clean(f"{flag_of(n['cc'])} {n['cc']}-{counter[n['cc']]:03d}")
     links = [to_link(n, n["name"]) for n in nodes]
     links = [l for l in links if l]
     open(f"{OUT}/nodes.txt", "w").write("\n".join(links) + "\n")
