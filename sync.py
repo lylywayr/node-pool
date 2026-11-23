@@ -1,0 +1,490 @@
+#!/usr/bin/env python3
+"""
+sync.py — 汇总 Darlene-Alderson-FSOCIETY 三个 gist 的节点，
+统一成标准分享链接 + Clash / sing-box / Surge 四种配置。
+
+无第三方依赖，Python 3.9+。本地: python3 sync.py    CI: 由 workflow 调用。
+"""
+import os, re, json, base64, datetime, urllib.request, urllib.parse as up
+
+GISTS = [
+    "86fa5f2ad8ff17c182f4009c87c0911b",
+    "2b6bd8622af25a1da773d549937cf713",
+    "81fc656cd0a8298a5aad99c7cfadcd97",
+]
+OWNER = "Darlene-Alderson-FSOCIETY"
+OUT = "sub"
+UA = {"User-Agent": "node-pool-sync/1.0", "Accept": "application/vnd.github+json"}
+TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+if TOKEN:
+    UA["Authorization"] = "Bearer " + TOKEN
+
+FLAG_CC = {
+    "ZW": "🇿🇼", "NL": "🇳🇱", "DE": "🇩🇪", "RU": "🇷🇺", "US": "🇺🇸", "SG": "🇸🇬", "JP": "🇯🇵",
+    "HK": "🇭🇰", "TW": "🇹🇼", "KR": "🇰🇷", "FR": "🇫🇷", "GB": "🇬🇧", "UK": "🇬🇧", "CA": "🇨🇦",
+    "FI": "🇫🇮", "SE": "🇸🇪", "CH": "🇨🇭", "AT": "🇦🇹", "IT": "🇮🇹", "ES": "🇪🇸", "PL": "🇵🇱",
+    "TR": "🇹🇷", "IR": "🇮🇷", "IN": "🇮🇳", "ID": "🇮🇩", "MY": "🇲🇾", "TH": "🇹🇭", "VN": "🇻🇳",
+    "AU": "🇦🇺", "BR": "🇧🇷", "AR": "🇦🇷", "MX": "🇲🇽", "ZA": "🇿🇦", "AE": "🇦🇪", "IL": "🇮🇱",
+    "UA": "🇺🇦", "CZ": "🇨🇿", "RO": "🇷🇴", "HU": "🇭🇺", "BG": "🇧🇬", "LT": "🇱🇹", "LV": "🇱🇻",
+    "EE": "🇪🇪", "NO": "🇳🇴", "DK": "🇩🇰", "BE": "🇧🇪", "IE": "🇮🇪", "PT": "🇵🇹", "GR": "🇬🇷",
+    "MD": "🇲🇩", "KZ": "🇰🇿", "BY": "🇧🇾", "AM": "🇦🇲", "GE": "🇬🇪", "AZ": "🇦🇿", "SA": "🇸🇦",
+    "QA": "🇶🇦", "KW": "🇰🇼", "EG": "🇪🇬", "NG": "🇳🇬", "KE": "🇰🇪", "CL": "🇨🇱", "PE": "🇵🇪",
+    "CO": "🇨🇴", "CR": "🇨🇷", "PA": "🇵🇦", "NZ": "🇳🇿", "PH": "🇵🇭", "PK": "🇵🇰", "BD": "🇧🇩",
+    "LK": "🇱🇰", "NP": "🇳🇵", "MN": "🇲🇳", "HK ": "🇭🇰",
+}
+CITY_WORDS = {
+    "amsterdam": "NL", "frankfurt": "DE", "moscow": "RU", "petersburg": "RU", "helsinki": "FI",
+    "stockholm": "SE", "zurich": "CH", "vienna": "AT", "london": "GB", "paris": "FR",
+    "warsaw": "PL", "istanbul": "TR", "tehran": "IR", "tokyo": "JP", "osaka": "JP",
+    "seoul": "KR", "singapore": "SG", "hongkong": "HK", "hong kong": "HK", "taipei": "TW",
+    "toronto": "CA", "miami": "US", "dallas": "US", "seattle": "US", "chicago": "US",
+    "los angeles": "US", "new york": "US", "sydney": "AU", "melbourne": "AU",
+}
+
+# ---------- fetch ----------
+def http(url, timeout=40):
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read().decode("utf-8", "ignore")
+
+def gist_files(gid):
+    meta = json.loads(http(f"https://api.github.com/gists/{gid}"))
+    return [(n, f["raw_url"], f.get("size", 0)) for n, f in meta["files"].items()]
+
+# ---------- helpers ----------
+def b64d(s):
+    s = re.sub(r"\s+", "", s)
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+def b64e(b):
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+def flag_cc(text):
+    for ch in text:
+        if 0x1F1E6 <= ord(ch) <= 0x1F1FF:
+            pass
+    m = re.findall(r"[\U0001F1E6-\U0001F1FF]{2}", text)
+    if m:
+        cc = "".join(chr(ord(c) - 0x1F1E6 + ord("A")) for c in m[0])
+        return cc
+    for w, cc in CITY_WORDS.items():
+        if w in text.lower():
+            return cc
+    m = re.search(r"\b([A-Z]{2})\b", text)
+    if m and m.group(1) in FLAG_CC:
+        return m.group(1)
+    return "XX"
+
+def clean(s):
+    s = re.sub(r"[,\r\n\t]+", " ", s or "")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s[:50]
+
+# ---------- parse ----------
+def parse(link):
+    sch = link.split("://", 1)[0].lower()
+    if sch == "vless": return parse_vless(link)
+    if sch == "vmess": return parse_vmess(link)
+    if sch == "trojan": return parse_trojan(link)
+    if sch in ("hysteria2", "hy2"): return parse_hy2(link)
+    if sch == "ss": return parse_ss(link)
+    return None
+
+def parse_vless(link):
+    u = up.urlparse(link)
+    q = dict(up.parse_qsl(u.query))
+    n = {"proto": "vless", "host": u.hostname, "port": u.port,
+         "uuid": up.unquote(u.username or ""), "name_raw": up.unquote(u.fragment or "")}
+    if not n["host"] or not n["port"] or not n["uuid"]: return None
+    sec = (q.get("security") or "none").lower()
+    n.update({"security": sec, "sni": q.get("sni") or q.get("host") or "",
+              "pbk": q.get("pbk", ""), "sid": q.get("sid", ""), "flow": q.get("flow", ""),
+              "net": (q.get("type") or "tcp").lower(), "path": up.unquote(q.get("path", "") or ""),
+              "hosthdr": q.get("host", ""), "svc": up.unquote(q.get("serviceName", "") or ""),
+              "mode": q.get("mode", ""), "alpn": up.unquote(q.get("alpn", "") or ""),
+              "fp": q.get("fp", ""), "insecure": str(q.get("insecure", q.get("allowInsecure", "0"))) in ("1", "true"),
+              "enc": q.get("encryption", "")})
+    if sec == "reality" and not n["pbk"]: return None
+    if n["net"] not in ("tcp", "raw", "ws", "grpc", "xhttp", "httpupgrade", "kcp"): return None
+    if n["net"] == "kcp": return None
+    return n
+
+def parse_vmess(link):
+    try:
+        j = json.loads(b64d(link.split("vmess://", 1)[1]).decode("utf-8", "ignore"))
+    except Exception:
+        return None
+    if not j.get("add") or not j.get("port") or not j.get("id"): return None
+    tls = str(j.get("tls", "")).lower()
+    return {"proto": "vmess", "host": j["add"], "port": int(j["port"]), "uuid": j["id"],
+            "name_raw": j.get("ps", ""), "security": "tls" if tls in ("tls", "reality") else "none",
+            "sni": j.get("sni") or j.get("host") or "", "net": str(j.get("net", "tcp")).lower(),
+            "path": j.get("path", "") or "", "hosthdr": j.get("host", ""), "svc": j.get("path", "") if str(j.get("net")) == "grpc" else "",
+            "alpn": j.get("alpn", "") or "", "aid": j.get("aid", 0), "insecure": False, "fp": ""}
+
+def parse_trojan(link):
+    u = up.urlparse(link)
+    q = dict(up.parse_qsl(u.query))
+    if not u.hostname or not u.port or not u.username: return None
+    return {"proto": "trojan", "host": u.hostname, "port": u.port, "password": up.unquote(u.username),
+            "name_raw": up.unquote(u.fragment or ""), "security": "tls",
+            "sni": q.get("sni", ""), "net": (q.get("type") or "tcp").lower(),
+            "path": up.unquote(q.get("path", "") or ""), "hosthdr": q.get("host", ""),
+            "svc": q.get("serviceName", ""), "alpn": q.get("alpn", "") or "",
+            "insecure": str(q.get("allowInsecure", q.get("insecure", "0"))) in ("1", "true")}
+
+def parse_hy2(link):
+    u = up.urlparse(link)
+    q = dict(up.parse_qsl(u.query))
+    pwd = up.unquote(u.username or "") or q.get("auth", "")
+    if not u.hostname or not u.port or not pwd: return None
+    return {"proto": "hysteria2", "host": u.hostname, "port": u.port, "password": pwd,
+            "name_raw": up.unquote(u.fragment or ""), "security": "tls", "sni": q.get("sni", ""),
+            "insecure": str(q.get("insecure", "0")) in ("1", "true"),
+            "obfs": q.get("obfs", ""), "obfs_pwd": q.get("obfs-password", ""), "alpn": q.get("alpn", "") or ""}
+
+def parse_ss(link):
+    body = link.split("ss://", 1)[1]
+    frag = ""
+    if "#" in body:
+        body, frag = body.split("#", 1)
+    body = body.split("?")[0]
+    if "@" in body:
+        userinfo, hostport = body.rsplit("@", 1)
+        try:
+            method, _, pwd = b64d(userinfo).decode().partition(":")
+        except Exception:
+            return None
+    else:
+        try:
+            method, _, rest = b64d(body).decode().partition(":")
+        except Exception:
+            return None
+        pwd, _, hostport = rest.rpartition("@")
+    host, _, port = hostport.rpartition(":")
+    if not host or not port.isdigit(): return None
+    return {"proto": "ss", "host": host, "port": int(port), "method": method, "password": pwd,
+            "name_raw": up.unquote(frag), "security": "plain", "net": "tcp"}
+
+# ---------- canonical share link ----------
+def to_link(n, name):
+    p = n["proto"]
+    frag = "#" + up.quote(name, safe="")
+    if p == "vless":
+        q = [("encryption", n.get("enc", "none") or "none"), ("security", n["security"])]
+        if n["sni"]: q.append(("sni", n["sni"]))
+        if n.get("fp"): q.append(("fp", n["fp"]))
+        if n["security"] == "reality":
+            q += [("pbk", n["pbk"]), ("sid", n.get("sid", ""))]
+        if n.get("flow"): q.append(("flow", n["flow"]))
+        q.append(("type", "tcp" if n["net"] == "raw" else n["net"]))
+        if n.get("hosthdr"): q.append(("host", n["hosthdr"]))
+        if n.get("path"): q.append(("path", n["path"]))
+        if n.get("svc"): q.append(("serviceName", n["svc"]))
+        if n.get("mode"): q.append(("mode", n["mode"]))
+        if n.get("alpn"): q.append(("alpn", n["alpn"]))
+        if n.get("insecure"): q.append(("allowInsecure", "1"))
+        qs = "&".join(f"{k}={up.quote(str(v), safe='')}" for k, v in q if v != "" or k == "sid")
+        return f"vless://{up.quote(n['uuid'], safe='')}@{n['host']}:{n['port']}?{qs}{frag}"
+    if p == "vmess":
+        j = {"v": "2", "ps": name, "add": n["host"], "port": str(n["port"]), "id": n["uuid"],
+             "aid": str(n.get("aid", 0)), "scy": "auto", "net": n["net"],
+             "type": "none", "host": n.get("hosthdr", ""), "path": n.get("path", "") or n.get("svc", ""),
+             "tls": n["security"] if n["security"] != "none" else "",
+             "sni": n.get("sni", ""), "alpn": n.get("alpn", "")}
+        return "vmess://" + base64.b64encode(json.dumps(j, ensure_ascii=False).encode()).decode()
+    if p == "trojan":
+        q = [("security", "tls"), ("type", n["net"])]
+        if n["sni"]: q.append(("sni", n["sni"]))
+        if n.get("path"): q.append(("path", n["path"]))
+        if n.get("hosthdr"): q.append(("host", n["hosthdr"]))
+        if n.get("svc"): q.append(("serviceName", n["svc"]))
+        if n.get("alpn"): q.append(("alpn", n["alpn"]))
+        if n.get("insecure"): q.append(("allowInsecure", "1"))
+        qs = "&".join(f"{k}={up.quote(str(v), safe='')}" for k, v in q if v)
+        return f"trojan://{up.quote(n['password'], safe='')}@{n['host']}:{n['port']}?{qs}{frag}"
+    if p == "hysteria2":
+        q = []
+        if n["sni"]: q.append(("sni", n["sni"]))
+        if n.get("obfs"): q += [("obfs", n["obfs"]), ("obfs-password", n.get("obfs_pwd", ""))]
+        if n.get("insecure"): q.append(("insecure", "1"))
+        if n.get("alpn"): q.append(("alpn", n["alpn"]))
+        qs = "&".join(f"{k}={up.quote(str(v), safe='')}" for k, v in q if v)
+        return f"hysteria2://{up.quote(n['password'], safe='')}@{n['host']}:{n['port']}" + (f"?{qs}" if qs else "") + frag
+    if p == "ss":
+        userinfo = b64e(f"{n['method']}:{n['password']}".encode())
+        return f"ss://{userinfo}@{n['host']}:{n['port']}{frag}"
+    return ""
+
+# ---------- clash ----------
+def clash_proxy(n, name):
+    d = {"name": name, "type": n["proto"], "server": n["host"], "port": n["port"], "udp": True}
+    p = n["proto"]
+    if p == "vless":
+        d.update({"uuid": n["uuid"], "tls": n["security"] in ("tls", "reality"), "client-fingerprint": n.get("fp") or "chrome",
+                  "servername": n["sni"] or n["host"], "skip-cert-verify": True, "flow": n.get("flow") or ""})
+        if n["security"] == "reality":
+            d["reality-opts"] = {"public-key": n["pbk"], "short-id": n.get("sid", "")}
+        d["network"] = "tcp" if n["net"] == "raw" else n["net"]
+    elif p == "vmess":
+        d.update({"uuid": n["uuid"], "alterId": int(n.get("aid") or 0), "cipher": "auto",
+                  "tls": n["security"] == "tls", "servername": n["sni"] or n["host"], "skip-cert-verify": True,
+                  "network": n["net"]})
+    elif p == "trojan":
+        d.update({"password": n["password"], "sni": n["sni"] or n["host"], "skip-cert-verify": True,
+                  "network": n["net"]})
+    elif p == "hysteria2":
+        d.update({"password": n["password"], "sni": n["sni"] or n["host"], "skip-cert-verify": True})
+        if n.get("obfs"):
+            d["obfs"] = n["obfs"]; d["obfs-password"] = n.get("obfs_pwd", "")
+        d.pop("udp", None)
+    elif p == "ss":
+        d.update({"cipher": n["method"], "password": n["password"]})
+    net = n.get("net", "tcp")
+    if net == "ws":
+        opts = {"path": n.get("path") or "/"}
+        if n.get("hosthdr"): opts["headers"] = {"Host": n["hosthdr"]}
+        d["ws-opts"] = opts
+    elif net == "httpupgrade":
+        d["network"] = "ws"
+        opts = {"path": n.get("path") or "/", "v2ray-http-upgrade": True}
+        if n.get("hosthdr"): opts["headers"] = {"Host": n["hosthdr"]}
+        d["ws-opts"] = opts
+    elif net == "grpc":
+        d["grpc-opts"] = {"grpc-service-name": n.get("svc", "")}
+    elif net == "xhttp":
+        d["xhttp-opts"] = {"path": n.get("path") or "/"}
+        if n.get("hosthdr"): d["xhttp-opts"]["host"] = n["hosthdr"]
+    if p in ("vless", "vmess") and n.get("alpn"):
+        d["alpn"] = [a for a in n["alpn"].split(",") if a]
+    if not d.get("flow"): d.pop("flow", None)
+    return d
+
+# ---------- sing-box ----------
+def sb_outbound(n, name, tag):
+    o = {"type": n["proto"], "tag": tag, "server": n["host"], "server_port": n["port"]}
+    if n["proto"] == "vless":
+        o.update({"uuid": n["uuid"], "packet_encoding": "xudp"})
+        if n.get("flow"): o["flow"] = n["flow"]
+    elif n["proto"] == "vmess":
+        o.update({"uuid": n["uuid"], "security": "auto", "alter_id": int(n.get("aid") or 0)})
+    elif n["proto"] == "trojan":
+        o["password"] = n["password"]
+    elif n["proto"] == "hysteria2":
+        o["password"] = n["password"]
+        o["tls"] = {"enabled": True, "server_name": n["sni"] or n["host"], "insecure": True,
+                    "alpn": [a for a in (n.get("alpn") or "h3").split(",") if a]}
+        if n.get("obfs"):
+            o["obfs"] = {"type": n["obfs"], "password": n.get("obfs_pwd", "")}
+        return o
+    elif n["proto"] == "ss":
+        o.update({"method": n["method"], "password": n["password"]})
+        return o
+    if n["security"] == "reality":
+        o["tls"] = {"enabled": True, "server_name": n["sni"], "insecure": True,
+                    "utls": {"enabled": True, "fingerprint": n.get("fp") or "chrome"},
+                    "reality": {"enabled": True, "public_key": n["pbk"],
+                                "short_id": n.get("sid", "")}}
+    elif n["security"] == "tls":
+        o["tls"] = {"enabled": True, "server_name": n["sni"] or n["host"], "insecure": True,
+                    "utls": {"enabled": True, "fingerprint": n.get("fp") or "chrome"}}
+        if n.get("alpn"): o["tls"]["alpn"] = [a for a in n["alpn"].split(",") if a]
+    if n["net"] == "ws":
+        o["transport"] = {"type": "ws", "path": n.get("path") or "/"}
+        if n.get("hosthdr"): o["transport"]["headers"] = {"Host": n["hosthdr"]}
+    elif n["net"] == "httpupgrade":
+        o["transport"] = {"type": "httpupgrade", "path": n.get("path") or "/"}
+        if n.get("hosthdr"): o["transport"]["headers"] = {"Host": n["hosthdr"]}
+    elif n["net"] == "grpc":
+        o["transport"] = {"type": "grpc", "service_name": n.get("svc", "")}
+    elif n["net"] == "xhttp":
+        o["transport"] = {"type": "xhttp", "path": n.get("path") or "/"}
+        if n.get("hosthdr"): o["transport"]["host"] = n["hosthdr"]
+        if n.get("mode"): o["transport"]["mode"] = n["mode"]
+    return o
+
+# ---------- surge ----------
+def surge_line(n, name):
+    p = n["proto"]
+    if p == "vless":
+        a = [f"username={n['uuid']}"]
+        if n.get("flow"): a.append(f"flow={n['flow']}")
+        if n["sni"]: a.append(f"sni={n['sni']}")
+        if n["security"] == "reality":
+            a.append(f"reality-public-key={n['pbk']}")
+            if n.get("sid"): a.append(f"reality-short-id={n['sid']}")
+        elif n["security"] == "tls":
+            a.append("tls=true")
+        if n["net"] == "ws":
+            a += ["ws=true", f"ws-path={n.get('path') or '/'}"]
+            if n.get("hosthdr"): a.append(f"ws-headers=Host:{n['hosthdr']}")
+        elif n["net"] == "httpupgrade":
+            a += ["ws=true", "ws-http-upgrade=true", f"ws-path={n.get('path') or '/'}"]
+            if n.get("hosthdr"): a.append(f"ws-headers=Host:{n['hosthdr']}")
+        elif n["net"] == "grpc":
+            a += ["grpc=true", f"grpc-service-name={n.get('svc','')}"]
+        elif n["net"] == "xhttp":
+            a.append("xhttp=true"); a.append(f"xhttp-path={n.get('path') or '/'}")
+            if n.get("hosthdr"): a.append(f"xhttp-host={n['hosthdr']}")
+            if n.get("mode"): a.append(f"xhttp-mode={n['mode']}")
+        if n["security"] == "tls" and n.get("insecure"): a.append("skip-cert-verify=true")
+        if n.get("alpn"): a.append(f"alpn={n['alpn']}")
+        return f"{name} = vless, {n['host']}, {n['port']}, " + ", ".join(a)
+    if p == "vmess":
+        a = [f"username={n['uuid']}"]
+        if n["security"] == "tls": a.append("tls=true")
+        if n["sni"]: a.append(f"sni={n['sni']}")
+        if n["net"] == "ws":
+            a += ["ws=true", f"ws-path={n.get('path') or '/'}"]
+            if n.get("hosthdr"): a.append(f"ws-headers=Host:{n['hosthdr']}")
+        elif n["net"] == "grpc":
+            a += ["grpc=true", f"grpc-service-name={n.get('svc','')}"]
+        return f"{name} = vmess, {n['host']}, {n['port']}, " + ", ".join(a)
+    if p == "trojan":
+        a = [f"password={n['password']}"]
+        if n["sni"]: a.append(f"sni={n['sni']}")
+        if n.get("insecure"): a.append("skip-cert-verify=true")
+        if n["net"] == "ws":
+            a += ["ws=true", f"ws-path={n.get('path') or '/'}"]
+            if n.get("hosthdr"): a.append(f"ws-headers=Host:{n['hosthdr']}")
+        return f"{name} = trojan, {n['host']}, {n['port']}, " + ", ".join(a)
+    if p == "hysteria2":
+        a = [f"password={n['password']}"]
+        if n["sni"]: a.append(f"sni={n['sni']}")
+        if n.get("insecure"): a.append("skip-cert-verify=true")
+        if n.get("obfs"):
+            a += [f"obfs={n['obfs']}", f"obfs-password={n.get('obfs_pwd','')}"]
+        return f"{name} = hysteria2, {n['host']}, {n['port']}, " + ", ".join(a)
+    if p == "ss":
+        return f"{name} = ss, {n['host']}, {n['port']}, encrypt-method={n['method']}, password={n['password']}"
+    return ""
+
+# ---------- main ----------
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    raw, src_stat = [], {}
+    for gid in GISTS:
+        for fname, url, size in gist_files(gid):
+            if size < 200 or not fname.endswith(".txt"):
+                continue
+            provider = re.sub(r"_Telegram_RE_s_B\.txt$|\.txt$", "", fname).strip()
+            txt = http(url)
+            n_before = len(raw)
+            for m in re.finditer(r"([a-zA-Z0-9]+)://([^\s<>\"']+)", txt):
+                sch = m.group(1).lower()
+                if sch not in ("vless", "vmess", "trojan", "hysteria2", "hy2", "ss"):
+                    continue
+                link = f"{sch}://{m.group(2)}"
+                try:
+                    n = parse(link)
+                except Exception:
+                    n = None
+                if n:
+                    n["provider"] = provider
+                    n["src_gist"] = gid[:8]
+                    raw.append(n)
+            src_stat[provider] = src_stat.get(provider, 0) + (len(raw) - n_before)
+    # dedupe
+    seen, nodes = set(), []
+    for n in raw:
+        key = (n["proto"], n["host"].lower(), n["port"],
+               n.get("uuid") or n.get("password") or "", n["security"], n.get("pbk", ""), n.get("net", ""))
+        if key in seen: continue
+        seen.add(key)
+        nodes.append(n)
+    # naming
+    counter = {}
+    for n in nodes:
+        cc = flag_cc(n.get("name_raw", ""))
+        counter[cc] = counter.get(cc, 0) + 1
+        n["cc"] = cc
+        n["name"] = clean(f"{FLAG_CC.get(cc,'🏴')} {cc}-{counter[cc]:02d} {n['provider']}")
+    nodes.sort(key=lambda n: (n["cc"], n["proto"], n["name"]))
+    # reassign stable numbering after sort
+    counter = {}
+    for n in nodes:
+        counter[n["cc"]] = counter.get(n["cc"], 0) + 1
+        n["name"] = clean(f"{FLAG_CC.get(n['cc'],'🏴')} {n['cc']}-{counter[n['cc']]:03d}")
+    links = [to_link(n, n["name"]) for n in nodes]
+    links = [l for l in links if l]
+    open(f"{OUT}/nodes.txt", "w").write("\n".join(links) + "\n")
+    open(f"{OUT}/v2ray.txt", "w").write(base64.b64encode("\n".join(links).encode()).decode())
+    # clash
+    lines = ["# Darlene gist pool — auto generated", "# https://github.com/%s" % os.environ.get("GITHUB_REPOSITORY", ""),
+             "mixed-port: 7890", "allow-lan: true", "mode: rule", "log-level: info", "", "proxies:"]
+    for n in nodes:
+        d = clash_proxy(n, n["name"])
+        body = ", ".join(f"{k}: {json.dumps(v, ensure_ascii=False)}" if isinstance(v, (dict, bool, list)) else f"{k}: {v}"
+                         for k, v in d.items())
+        lines.append(f"  - {{{body}}}")
+    names_yaml = json.dumps([n["name"] for n in nodes], ensure_ascii=False)
+    lines += ["", "proxy-groups:", "  - name: 手动选择", "    type: select", "    proxies: " + names_yaml,
+              "  - name: 自动测速", "    type: url-test", "    url: http://www.gstatic.com/generate_204",
+              "    interval: 300", "    proxies: " + names_yaml,
+              "", "rules:", "  - GEOIP,CN,DIRECT", "  - MATCH,自动测速", ""]
+    open(f"{OUT}/clash.yaml", "w").write("\n".join(lines))
+    # sing-box
+    outs = [sb_outbound(n, n["name"], n["name"]) for n in nodes]
+    cfg = {"log": {"level": "info"}, "inbounds": [{"type": "mixed", "tag": "mixed", "listen": "127.0.0.1", "listen_port": 2080}],
+           "outbounds": outs + [{"type": "selector", "tag": "手动选择", "outbounds": [o["tag"] for o in outs] + ["自动测速"]},
+                                {"type": "urltest", "tag": "自动测速", "outbounds": [o["tag"] for o in outs],
+                                 "url": "http://www.gstatic.com/generate_204", "interval": "5m"}]}
+    json.dump(cfg, open(f"{OUT}/singbox.json", "w"), ensure_ascii=False, indent=1)
+    # surge
+    sg = ["# Darlene gist pool — Surge 6 (VLESS/REALITY 需 iOS 6.0+)", "# " + datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"), "", "[Proxy]"]
+    sg += [surge_line(n, n["name"]) for n in nodes]
+    sg += ["", "[Proxy Group]", "手动选择 = select, " + ", ".join(n["name"] for n in nodes),
+           "自动测速 = url-test, " + ", ".join(n["name"] for n in nodes) + ", url=http://www.gstatic.com/generate_204, interval=300",
+           "", "[Rule]", "GEOIP,CN,DIRECT", "FINAL,自动测速", ""]
+    open(f"{OUT}/surge.conf", "w").write("\n".join(sg))
+    # README
+    from collections import Counter
+    pc = Counter(n["proto"] for n in nodes); cc = Counter(n["cc"] for n in nodes)
+    sec = Counter(n["security"] for n in nodes)
+    top = "\n".join(f"| {k} | {v} |" for k, v in cc.most_common(15))
+    readme = f"""# node-pool
+
+从 [@Darlene-Alderson-FSOCIETY](https://gist.github.com/{OWNER}) 的三个 gist 自动汇总，统一改写成标准分享链接，并生成 Clash / sing-box / Surge 配置。
+由 GitHub Actions 每 6 小时同步一次。
+
+- 更新时间：{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
+- 节点总数：**{len(nodes)}**（去重后，单源 {len(raw)} 条）
+- 协议：{', '.join(f'{k} {v}' for k, v in pc.most_common())}
+- 安全层：{', '.join(f'{k} {v}' for k, v in sec.most_common())}
+
+## 文件
+
+| 文件 | 用途 |
+| --- | --- |
+| `sub/nodes.txt` | 标准分享链接，一行一条 |
+| `sub/v2ray.txt` | 上面那份的 Base64（v2rayN / Shadowrocket 订阅格式） |
+| `sub/clash.yaml` | mihomo / Clash Meta（REALITY 用 `reality-opts`） |
+| `sub/singbox.json` | sing-box 1.10+ |
+| `sub/surge.conf` | Surge 6（VLESS/REALITY 需 iOS 6.0.0+） |
+
+## 订阅地址
+
+```
+https://raw.githubusercontent.com/{os.environ.get('GITHUB_REPOSITORY','OWNER/REPO')}/main/sub/v2ray.txt
+https://raw.githubusercontent.com/{os.environ.get('GITHUB_REPOSITORY','OWNER/REPO')}/main/sub/clash.yaml
+https://raw.githubusercontent.com/{os.environ.get('GITHUB_REPOSITORY','OWNER/REPO')}/main/sub/singbox.json
+```
+
+## 地区分布
+
+| 地区 | 数量 |
+| --- | --- |
+{top}
+
+## 说明
+
+节点来自公开 Telegram 频道 @RE_s_B 的镜像，属公共共享资源，随时可能失效；不要在上面登录重要账号。
+配置为机器生成，`sync.py` 是唯一源文件。
+"""
+    open("README.md", "w").write(readme)
+    print(f"nodes={len(nodes)} raw={len(raw)} links={len(links)}")
+    print("provider:", src_stat)
+    print("proto:", dict(pc))
+
+if __name__ == "__main__":
+    main()
