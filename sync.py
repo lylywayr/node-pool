@@ -139,6 +139,69 @@ def flag_cc(text):
         return m.group(1)
     return "XX"
 
+EN_CODES = set("""HK MO TW JP KR SG US GB FR DE AU AE AF AL DZ AO AR AM AT AZ BH BD BY BE BZ BJ BT BO BA BW BR VG BN BG BF BI KH CM CA CV KY CF TD CL CO KM CG CD CR HR CY CZ DK DJ DO EC EG SV GQ ER EE ET FJ FI GA GM GE GH GR GL GT GN GY HT HN HU IS IN ID IR IQ IE IM IL IT CI JM JO KZ KE KW KG LA LV LB LS LR LY LT LU MK MG MW MY MV ML MT MR MU MX MD MC MN ME MA MZ MM NA NP NL NZ NI NE NG KP NO OM PK PA PY PE PH PT PR QA RO RU RW SM SA SN RS SL SK SI SO ZA ES LK SD SR SZ SE CH SY TJ TZ TH TG TO TT TN TR TM VI UG UA UY UZ VE VN YE ZM ZW AD RE PL GU VA LI CW SC AQ GI CU FO AX BM TL""".split())
+
+STEM_CC = {
+    "swed": "SE", "sver": "SE", "norw": "NO", "dan": "DK", "fin": "FI", "ger": "DE",
+    "deut": "DE", "neth": "NL", "holl": "NL", "belg": "BE", "fran": "FR", "ital": "IT",
+    "espa": "ES", "port": "PT", "pol": "PL", "czech": "CZ", "slov": "SK", "hung": "HU",
+    "roma": "RO", "bulg": "BG", "gree": "GR", "turk": "TR", "ukr": "UA", "russ": "RU",
+    "bela": "BY", "lith": "LT", "latv": "LV", "esto": "EE", "mold": "MD", "geor": "GE",
+    "arme": "AM", "azer": "AZ", "kaza": "KZ", "uzbe": "UZ", "kirg": "KG", "taji": "TJ",
+    "mong": "MN", "chin": "CN", "japa": "JP", "kore": "KR", "sing": "SG", "indi": "IN",
+    "thai": "TH", "viet": "VN", "indo": "ID", "mala": "MY", "phil": "PH", "camb": "KH",
+    "laos": "LA", "myan": "MM", "aust": "AU", "zea": "NZ", "braz": "BR", "arge": "AR",
+    "chile": "CL", "peru": "PE", "colo": "CO", "mexi": "MX", "egyp": "EG", "sout": "ZA",
+    "nige": "NG", "keny": "KE", "moro": "MA", "isra": "IL", "iran": "IR", "iraq": "IQ",
+    "jord": "JO", "leba": "LB", "kuwa": "KW", "oman": "OM", "bahra": "BH", "qata": "QA",
+    "cypr": "CY", "malt": "MT", "icel": "IS", "irel": "IE", "croa": "HR", "serb": "RS",
+    "slove": "SI", "bosn": "BA", "mont": "ME", "alba": "AL", "mace": "MK", "luxe": "LU",
+    "cana": "CA", "amer": "US",
+}
+
+CC_TLD = {k: v for k, v in {
+    "hk": "HK", "tw": "TW", "mo": "MO", "jp": "JP", "kr": "KR", "sg": "SG", "cn": "CN",
+    "ru": "RU", "ir": "IR", "de": "DE", "nl": "NL", "fr": "FR", "uk": "GB", "it": "IT",
+    "es": "ES", "pl": "PL", "se": "SE", "fi": "FI", "no": "NO", "dk": "DK", "ch": "CH",
+    "at": "AT", "be": "BE", "cz": "CZ", "ro": "RO", "ua": "UA", "kz": "KZ", "vn": "VN",
+    "th": "TH", "id": "ID", "my": "MY", "ph": "PH", "in": "IN", "au": "AU", "nz": "NZ",
+    "br": "BR", "mx": "MX", "ar": "AR", "tr": "TR", "ae": "AE", "sa": "SA", "il": "IL",
+    "gr": "GR", "pt": "PT", "hu": "HU", "bg": "BG", "hr": "HR", "rs": "RS", "lt": "LT",
+    "lv": "LV", "ee": "EE", "md": "MD", "by": "BY", "ge": "GE", "am": "AM", "az": "AZ",
+    "uz": "UZ", "kg": "KG", "tj": "TJ", "tm": "TM", "mn": "MN", "pk": "PK", "bd": "BD",
+    "lk": "LK", "np": "NP", "kh": "KH", "la": "LA", "mm": "MM", "za": "ZA", "eg": "EG",
+    "ng": "NG", "ke": "KE", "ma": "MA", "cl": "CL", "pe": "PE", "ec": "EC", "uy": "UY",
+    "py": "PY", "bo": "BO", "cr": "CR", "pa": "PA", "pr": "PR", "do": "DO", "gt": "GT",
+}.items() if v in EN_CODES}
+
+FAKE_IP = re.compile(r"^198\.(1[89])\.")  # Surge fake-ip 段，不能拿去查归属地
+
+def host_cc(host):
+    """从主机名推国家：cc 标签 / cc-城市 / 词干 / 城市 / ccTLD"""
+    host = (host or "").strip().lower().rstrip(".")
+    if not host or IS_IP.match(host):
+        return ""
+    labels = host.split(".")
+    best = None
+    for i, label in enumerate(labels):
+        cc, score = "", 0
+        if re.fullmatch(r"[a-z]{2}", label) and label.upper() in EN_CODES:
+            cc, score = label.upper(), 3
+        elif re.fullmatch(r"[a-z]{2}(?:\d{1,3}|[-_](?:\d{1,3}|[a-z]{2,12}(?:[-_]?\d{1,3})?))", label):
+            cc, score = label[:2].upper(), 2
+        elif label in STEM_CC:
+            cc, score = STEM_CC[label], 2
+        else:
+            for w, code in CITY_WORDS.items():
+                if len(w) >= 5 and w in label:
+                    cc, score = code, 2
+                    break
+        if cc and (best is None or score > best[0] or (score == best[0] and i > best[1])):
+            best = (score, i, cc)
+    if best:
+        return best[2]
+    return CC_TLD.get(labels[-1], "")
+
 def flag_of(cc):
     if not cc or cc == "XX" or len(cc) != 2:
         return "🏴"
@@ -455,6 +518,9 @@ def main():
                     n["src_gist"] = gid[:8]
                     raw.append(n)
             src_stat[provider] = src_stat.get(provider, 0) + (len(raw) - n_before)
+    # 过滤占位/无效端点
+    raw = [n for n in raw if n["host"] not in ("0.0.0.0", "127.0.0.1", "::", "::1", "localhost")]
+
     # dedupe
     seen, nodes = set(), []
     for n in raw:
@@ -463,9 +529,10 @@ def main():
         if key in seen: continue
         seen.add(key)
         nodes.append(n)
-    # 地区：先按节点名推断，名字里没有、server 又是纯 IP 的按 IP 归属地补
+    # 地区：节点名 -> 主机名 -> IP 归属地，依次兜底
     for n in nodes:
-        n["cc"] = flag_cc(n.get("name_raw", ""))
+        cc = flag_cc(n.get("name_raw", ""))
+        n["cc"] = cc if cc != "XX" else (host_cc(n["host"]) or "XX")
 
     ip_hosts = sorted({n["host"] for n in nodes if n["cc"] == "XX" and IS_IP.match(n["host"])})
     if ip_hosts:
@@ -478,7 +545,7 @@ def main():
     domain_hosts = sorted({n["host"] for n in nodes if n["cc"] == "XX" and not IS_IP.match(n["host"])})
     if domain_hosts:
         host_ip = {h: resolve_host(h) for h in domain_hosts}
-        ips2 = sorted({ip for ip in host_ip.values() if ip})
+        ips2 = sorted({ip for ip in host_ip.values() if ip and not FAKE_IP.match(ip)})
         geo2 = geo_lookup(ips2) if ips2 else {}
         for n in nodes:
             if n["cc"] == "XX":
