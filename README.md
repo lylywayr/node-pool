@@ -3,10 +3,10 @@
 从 [@Darlene-Alderson-FSOCIETY](https://gist.github.com/Darlene-Alderson-FSOCIETY) 的三个 gist 自动汇总，统一改写成标准分享链接，并生成 Clash / sing-box / Surge 配置。
 由 GitHub Actions 每 6 小时同步一次。
 
-- 更新时间：2026-11-26 01:46 UTC
-- 节点总数：**295**（去重后，单源 378 条）
-- 协议：vless 246, hysteria2 22, ss 15, vmess 7, trojan 5
-- 安全层：reality 204, tls 67, plain 15, none 9
+- 更新时间：2026-11-26 16:54 UTC
+- 节点总数：**385**（去重后，单源 476 条）
+- 协议：vless 329, hysteria2 29, ss 15, trojan 6, vmess 6
+- 安全层：reality 269, tls 92, plain 15, none 9
 
 ## 文件
 
@@ -30,21 +30,21 @@ https://raw.githubusercontent.com/lylywayr/node-pool/main/sub/singbox.json
 
 | 地区 | 数量 |
 | --- | --- |
-| RU | 117 |
-| US | 36 |
-| DE | 17 |
+| RU | 134 |
+| US | 64 |
+| NL | 23 |
+| CA | 21 |
+| DE | 18 |
 | FI | 15 |
-| GB | 11 |
-| FR | 10 |
-| CH | 8 |
-| NL | 8 |
-| UA | 7 |
-| ES | 6 |
-| SE | 6 |
-| AU | 5 |
+| GB | 12 |
+| FR | 8 |
+| CH | 7 |
+| ES | 7 |
+| AU | 6 |
+| TR | 6 |
+| UA | 6 |
+| JP | 5 |
 | PL | 5 |
-| CA | 4 |
-| IT | 4 |
 
 ## 说明
 
