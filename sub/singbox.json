@@ -916,18 +916,6 @@
   {
    "type": "vless",
    "tag": "🇪🇸 ES-005",
-   "server": "213.182.201.126",
-   "server_port": 3090,
-   "uuid": "f0755e40-43a2-48f1-97e2-908a227b5a60",
-   "packet_encoding": "xudp",
-   "transport": {
-    "type": "grpc",
-    "service_name": "vless"
-   }
-  },
-  {
-   "type": "vless",
-   "tag": "🇪🇸 ES-006",
    "server": "46.28.71.247",
    "server_port": 443,
    "uuid": "12c53e32-e589-47d6-b857-e4132294f767",
@@ -950,7 +938,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇪🇸 ES-007",
+   "tag": "🇪🇸 ES-006",
    "server": "sp.marshallbe.online",
    "server_port": 443,
    "uuid": "4448f739-1a21-4395-993c-c67591f12bb1",
@@ -1305,6 +1293,32 @@
   {
    "type": "vless",
    "tag": "🇫🇷 FR-002",
+   "server": "13.141.37.2",
+   "server_port": 443,
+   "uuid": "cda0862a-0f87-4be9-8ed8-1d0c9e382839",
+   "packet_encoding": "xudp",
+   "tls": {
+    "enabled": true,
+    "server_name": "717252g.nl8.h1clayd.click",
+    "insecure": true,
+    "utls": {
+     "enabled": true,
+     "fingerprint": "firefox"
+    },
+    "reality": {
+     "enabled": true,
+     "public_key": "PD8Jdlg3xB9QY--jwQjp8PFPzCS8-Oryw6-HWBcHMFU",
+     "short_id": "d3bd772514c87d28"
+    }
+   },
+   "transport": {
+    "type": "grpc",
+    "service_name": "204adda7e3da"
+   }
+  },
+  {
+   "type": "vless",
+   "tag": "🇫🇷 FR-003",
    "server": "135.125.72.90",
    "server_port": 443,
    "uuid": "59367b95-1d87-4191-a231-89c72e3ab4b0",
@@ -1327,7 +1341,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇫🇷 FR-003",
+   "tag": "🇫🇷 FR-004",
    "server": "135.125.72.90",
    "server_port": 8443,
    "uuid": "59367b95-1d87-4191-a231-89c72e3ab4b0",
@@ -1350,7 +1364,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇫🇷 FR-004",
+   "tag": "🇫🇷 FR-005",
    "server": "145.223.68.58",
    "server_port": 443,
    "uuid": "edb50d20-2d3e-4c1e-8a75-a17168a89aa5",
@@ -1373,7 +1387,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇫🇷 FR-005",
+   "tag": "🇫🇷 FR-006",
    "server": "179.255.176.73",
    "server_port": 443,
    "uuid": "148917bd-0b37-42b8-98f4-aa94ca73e75a",
@@ -1396,7 +1410,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇫🇷 FR-006",
+   "tag": "🇫🇷 FR-007",
    "server": "51.77.217.70",
    "server_port": 2053,
    "uuid": "d4ff3428-d624-4ce6-837a-713b14d3841d",
@@ -1418,7 +1432,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇫🇷 FR-007",
+   "tag": "🇫🇷 FR-008",
    "server": "57.130.58.86",
    "server_port": 8443,
    "uuid": "59367b95-1d87-4191-a231-89c72e3ab4b0",
@@ -1441,7 +1455,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇫🇷 FR-008",
+   "tag": "🇫🇷 FR-009",
    "server": "57.130.64.32",
    "server_port": 8443,
    "uuid": "59367b95-1d87-4191-a231-89c72e3ab4b0",
@@ -1464,7 +1478,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇫🇷 FR-009",
+   "tag": "🇫🇷 FR-010",
    "server": "81.49.182.202",
    "server_port": 443,
    "uuid": "58e22afd-bf74-4736-984d-63a8ca03d7f0",
@@ -1619,32 +1633,6 @@
   {
    "type": "vless",
    "tag": "🇬🇧 GB-008",
-   "server": "195.206.235.241",
-   "server_port": 443,
-   "uuid": "cda0862a-0f87-4be9-8ed8-1d0c9e382839",
-   "packet_encoding": "xudp",
-   "tls": {
-    "enabled": true,
-    "server_name": "717252g.nl8.h1clayd.click",
-    "insecure": true,
-    "utls": {
-     "enabled": true,
-     "fingerprint": "firefox"
-    },
-    "reality": {
-     "enabled": true,
-     "public_key": "PD8Jdlg3xB9QY--jwQjp8PFPzCS8-Oryw6-HWBcHMFU",
-     "short_id": "d3bd772514c87d28"
-    }
-   },
-   "transport": {
-    "type": "grpc",
-    "service_name": "204adda7e3da"
-   }
-  },
-  {
-   "type": "vless",
-   "tag": "🇬🇧 GB-009",
    "server": "23.81.37.84",
    "server_port": 8443,
    "uuid": "59367b95-1d87-4191-a231-89c72e3ab4b0",
@@ -1667,7 +1655,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇬🇧 GB-010",
+   "tag": "🇬🇧 GB-009",
    "server": "51.89.194.151",
    "server_port": 2053,
    "uuid": "7a321450-69a3-4fe5-b347-ad2169e5d284",
@@ -1689,7 +1677,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇬🇧 GB-011",
+   "tag": "🇬🇧 GB-010",
    "server": "83.147.18.3",
    "server_port": 443,
    "uuid": "9f61cdf4-810d-4052-bbc7-2da0c8e20104",
@@ -1712,7 +1700,7 @@
   },
   {
    "type": "vless",
-   "tag": "🇬🇧 GB-012",
+   "tag": "🇬🇧 GB-011",
    "server": "uk.marshallbe.online",
    "server_port": 443,
    "uuid": "4448f739-1a21-4395-993c-c67591f12bb1",
@@ -1735,9 +1723,9 @@
   {
    "type": "vless",
    "tag": "🇬🇪 GE-001",
-   "server": "93.190.9.101",
+   "server": "93.190.8.34",
    "server_port": 3090,
-   "uuid": "f0755e40-43a2-48f1-97e2-908a227b5a60",
+   "uuid": "561a6deb-c7bc-4be7-ad03-5b2704b821aa",
    "packet_encoding": "xudp",
    "transport": {
     "type": "grpc",
@@ -1747,9 +1735,9 @@
   {
    "type": "vless",
    "tag": "🇬🇪 GE-002",
-   "server": "93.190.9.102",
+   "server": "93.190.9.128",
    "server_port": 3090,
-   "uuid": "f0755e40-43a2-48f1-97e2-908a227b5a60",
+   "uuid": "561a6deb-c7bc-4be7-ad03-5b2704b821aa",
    "packet_encoding": "xudp",
    "transport": {
     "type": "grpc",
@@ -1759,9 +1747,9 @@
   {
    "type": "vless",
    "tag": "🇬🇪 GE-003",
-   "server": "93.190.9.121",
+   "server": "93.190.9.143",
    "server_port": 3090,
-   "uuid": "f0755e40-43a2-48f1-97e2-908a227b5a60",
+   "uuid": "561a6deb-c7bc-4be7-ad03-5b2704b821aa",
    "packet_encoding": "xudp",
    "transport": {
     "type": "grpc",
@@ -1974,7 +1962,7 @@
   {
    "type": "trojan",
    "tag": "🇯🇵 JP-002",
-   "server": "35.78.230.158",
+   "server": "35.75.2.144",
    "server_port": 12722,
    "password": "afcdd90e-72a2-439e-b449-1c6b0267690d",
    "tls": {
@@ -2135,6 +2123,29 @@
   {
    "type": "vless",
    "tag": "🇱🇻 LV-003",
+   "server": "185.81.129.202",
+   "server_port": 443,
+   "uuid": "13908eee-ea78-4363-adab-6cca98ecfce3",
+   "packet_encoding": "xudp",
+   "flow": "xtls-rprx-vision",
+   "tls": {
+    "enabled": true,
+    "server_name": "lt.3apes.pro",
+    "insecure": true,
+    "utls": {
+     "enabled": true,
+     "fingerprint": "safari"
+    },
+    "reality": {
+     "enabled": true,
+     "public_key": "q4_o7NvD6vQg4hYsyO29Q6PVufjTJHDUbQTqstre9EQ",
+     "short_id": ""
+    }
+   }
+  },
+  {
+   "type": "vless",
+   "tag": "🇱🇻 LV-004",
    "server": "195.123.213.28",
    "server_port": 443,
    "uuid": "02fcc1a4-ee90-4970-8bbb-4ffaa8109d24",
@@ -2379,7 +2390,24 @@
   {
    "type": "vless",
    "tag": "🇵🇱 PL-004",
-   "server": "94.183.167.153",
+   "server": "94.183.167.172",
+   "server_port": 443,
+   "uuid": "d7121b33-e335-4921-bb00-4c0b157e7fc1",
+   "packet_encoding": "xudp",
+   "tls": {
+    "enabled": true,
+    "server_name": "s8k4.scan-cdn.com",
+    "insecure": true,
+    "utls": {
+     "enabled": true,
+     "fingerprint": "firefox"
+    }
+   }
+  },
+  {
+   "type": "vless",
+   "tag": "🇵🇱 PL-005",
+   "server": "94.183.167.188",
    "server_port": 443,
    "uuid": "80b3cf20-c77c-4fb9-a69e-55c9dadd58c8",
    "packet_encoding": "xudp",
@@ -2396,23 +2424,6 @@
      "enabled": true,
      "public_key": "q4_o7NvD6vQg4hYsyO29Q6PVufjTJHDUbQTqstre9EQ",
      "short_id": ""
-    }
-   }
-  },
-  {
-   "type": "vless",
-   "tag": "🇵🇱 PL-005",
-   "server": "94.183.167.172",
-   "server_port": 443,
-   "uuid": "d7121b33-e335-4921-bb00-4c0b157e7fc1",
-   "packet_encoding": "xudp",
-   "tls": {
-    "enabled": true,
-    "server_name": "s8k4.scan-cdn.com",
-    "insecure": true,
-    "utls": {
-     "enabled": true,
-     "fingerprint": "firefox"
     }
    }
   },
@@ -5341,9 +5352,21 @@
   {
    "type": "vless",
    "tag": "🇸🇰 SK-001",
-   "server": "80.243.228.8",
+   "server": "80.243.228.10",
    "server_port": 2085,
-   "uuid": "f0755e40-43a2-48f1-97e2-908a227b5a60",
+   "uuid": "561a6deb-c7bc-4be7-ad03-5b2704b821aa",
+   "packet_encoding": "xudp",
+   "transport": {
+    "type": "grpc",
+    "service_name": "vless"
+   }
+  },
+  {
+   "type": "vless",
+   "tag": "🇸🇰 SK-002",
+   "server": "80.243.228.16",
+   "server_port": 2085,
+   "uuid": "561a6deb-c7bc-4be7-ad03-5b2704b821aa",
    "packet_encoding": "xudp",
    "transport": {
     "type": "grpc",
@@ -6410,7 +6433,6 @@
     "🇪🇸 ES-004",
     "🇪🇸 ES-005",
     "🇪🇸 ES-006",
-    "🇪🇸 ES-007",
     "🇫🇮 FI-001",
     "🇫🇮 FI-002",
     "🇫🇮 FI-003",
@@ -6435,6 +6457,7 @@
     "🇫🇷 FR-007",
     "🇫🇷 FR-008",
     "🇫🇷 FR-009",
+    "🇫🇷 FR-010",
     "🇬🇧 GB-001",
     "🇬🇧 GB-002",
     "🇬🇧 GB-003",
@@ -6446,7 +6469,6 @@
     "🇬🇧 GB-009",
     "🇬🇧 GB-010",
     "🇬🇧 GB-011",
-    "🇬🇧 GB-012",
     "🇬🇪 GE-001",
     "🇬🇪 GE-002",
     "🇬🇪 GE-003",
@@ -6470,6 +6492,7 @@
     "🇱🇻 LV-001",
     "🇱🇻 LV-002",
     "🇱🇻 LV-003",
+    "🇱🇻 LV-004",
     "🇳🇱 NL-001",
     "🇳🇱 NL-002",
     "🇳🇱 NL-003",
@@ -6613,6 +6636,7 @@
     "🇸🇬 SG-002",
     "🇸🇬 SG-003",
     "🇸🇰 SK-001",
+    "🇸🇰 SK-002",
     "🇹🇼 TW-001",
     "🇺🇦 UA-001",
     "🇺🇦 UA-002",
@@ -6711,7 +6735,6 @@
     "🇪🇸 ES-004",
     "🇪🇸 ES-005",
     "🇪🇸 ES-006",
-    "🇪🇸 ES-007",
     "🇫🇮 FI-001",
     "🇫🇮 FI-002",
     "🇫🇮 FI-003",
@@ -6736,6 +6759,7 @@
     "🇫🇷 FR-007",
     "🇫🇷 FR-008",
     "🇫🇷 FR-009",
+    "🇫🇷 FR-010",
     "🇬🇧 GB-001",
     "🇬🇧 GB-002",
     "🇬🇧 GB-003",
@@ -6747,7 +6771,6 @@
     "🇬🇧 GB-009",
     "🇬🇧 GB-010",
     "🇬🇧 GB-011",
-    "🇬🇧 GB-012",
     "🇬🇪 GE-001",
     "🇬🇪 GE-002",
     "🇬🇪 GE-003",
@@ -6771,6 +6794,7 @@
     "🇱🇻 LV-001",
     "🇱🇻 LV-002",
     "🇱🇻 LV-003",
+    "🇱🇻 LV-004",
     "🇳🇱 NL-001",
     "🇳🇱 NL-002",
     "🇳🇱 NL-003",
@@ -6914,6 +6938,7 @@
     "🇸🇬 SG-002",
     "🇸🇬 SG-003",
     "🇸🇰 SK-001",
+    "🇸🇰 SK-002",
     "🇹🇼 TW-001",
     "🇺🇦 UA-001",
     "🇺🇦 UA-002",
